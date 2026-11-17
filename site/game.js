@@ -41,7 +41,7 @@ let id = 0
 let audioContext
 
 const state = {
-  frequency: .45,
+  frequency: 1,
   temp: 18,
   leak: 0,
   score: 0,
@@ -130,13 +130,13 @@ function removePacket(packet) {
 }
 
 function processPacket(packet) {
-  const multiplier = 1 + state.frequency * 2.8
+  const multiplier = state.frequency >= 8 ? 2 : 1 + (state.frequency - 1) / 9
   const points = Math.round((packet.error ? 18 : 42) * multiplier * state.combo)
   state.score += points
   state.packetsCleared += 1
   state.combo = clamp(state.combo + (packet.error ? 0 : .25), 1, 9.99)
-  state.temp += packet.error ? 12 + state.frequency * 10 : 1.2 + state.frequency * 3
-  if (packet.error) state.leak += 18
+  state.temp += packet.error ? 5 + state.frequency * .8 : .4 + state.frequency * .16
+  if (packet.error) state.leak += 12
   showHit(packet, points)
   removePacket(packet)
 }
@@ -156,6 +156,7 @@ function expirePackets(delta) {
     packet.age += delta
     if (packet.error) packet.x += packet.velocity * delta
     if (packet.age > packet.ttl) {
+      state.leak += packet.error ? 7 : 2
       if (packet.error) state.score = Math.max(0, state.score - 80)
       state.combo = Math.max(1, state.combo - .2)
       removePacket(packet)
@@ -164,18 +165,11 @@ function expirePackets(delta) {
 }
 
 function triggerCooldown() {
-  state.thermalEvents += 1
-  state.temp = 86
-  state.cooldown = 5
-  state.frequency = 0
-  slider.value = '0'
-  ui.cooldownOverlay.classList.add('active')
-  ui.sessionState.textContent = 'THERMAL LOCK'
-  thermalAlarm()
-  if (state.thermalEvents >= 3) crash()
+  crash()
 }
 
 function crash() {
+  if (state.crashed) return
   state.crashed = true
   state.cooldown = 0
   state.packets.forEach((packet) => packet.element.remove())
@@ -183,6 +177,8 @@ function crash() {
   ui.cooldownOverlay.classList.remove('active')
   ui.crashOverlay.classList.add('active')
   ui.sessionState.textContent = 'SYSTEM CRASHED'
+  document.body.classList.add('crashed')
+  thermalAlarm()
   showResult()
 }
 
@@ -207,11 +203,11 @@ function collectGarbage() {
 }
 
 function updateUI(elapsed) {
-  const clock = 1 + state.frequency * 4
-  const mode = state.frequency < .28 ? 'SAFE / SLOW' : state.frequency > .78 ? 'REDLINE' : 'BALANCED'
+  const clock = state.frequency
+  const mode = state.frequency === 1 ? 'SAFE / SLOW' : state.frequency >= 8 ? 'REDLINE' : 'BALANCED'
   ui.clock.textContent = `${clock.toFixed(2)} GHz`
-  ui.clockMeter.style.width = `${state.frequency * 100}%`
-  ui.multiplier.textContent = `${(1 + state.frequency * 2.8).toFixed(2)}×`
+  ui.clockMeter.style.width = `${((state.frequency - 1) / 9) * 100}%`
+  ui.multiplier.textContent = `${(state.frequency >= 8 ? 2 : 1 + (state.frequency - 1) / 9).toFixed(2)}×`
   ui.temp.textContent = `${Math.round(state.temp)}°C`
   ui.tempMeter.style.width = `${state.temp}%`
   ui.leak.textContent = `${Math.round(state.leak)}%`
@@ -227,6 +223,7 @@ function updateUI(elapsed) {
   ui.gcStatus.textContent = state.leak >= 35 ? 'REQUIRED' : 'STANDBY'
   gcButton.disabled = state.leak < 35 || state.cooldown || state.crashed
   gcButton.classList.toggle('ready', state.leak >= 35 && !state.cooldown && !state.crashed)
+  document.body.classList.toggle('thermal-warning', state.temp > 90 && !state.crashed)
   if (state.cooldown > 0) ui.cooldownValue.textContent = state.cooldown.toFixed(1)
 }
 
@@ -239,29 +236,29 @@ function update(delta, elapsed) {
       ui.sessionState.textContent = 'SYSTEM ONLINE'
     }
   } else {
-    const heatRate = .8 + state.frequency * 2.8 + state.leak / 180
+    const heatRate = .35 + state.frequency * .32 + state.leak / 260
     state.temp += heatRate * delta
-    state.leak += (.7 + state.frequency * .9) * delta
-    if (state.temp >= 100) triggerCooldown()
+    state.leak += (.18 + state.frequency * .06) * delta
+    if (state.temp >= 100) crash()
     if (state.leak >= 100) crash()
     spawnTimer += delta
-    const spawnEvery = Math.max(.32, .95 - state.frequency * .5)
+    const spawnEvery = Math.max(.28, 1.05 - state.frequency * .06)
     if (spawnTimer > spawnEvery) {
       spawnTimer = 0
       spawnPacket()
     }
   }
 
-  const lag = clamp(.05 + state.frequency * .19 + state.leak / 700, .05, .34)
-  state.cursorPosition.x += (state.cursorTarget.x - state.cursorPosition.x) * (1 - Math.pow(lag, delta * 60))
-  state.cursorPosition.y += (state.cursorTarget.y - state.cursorPosition.y) * (1 - Math.pow(lag, delta * 60))
+  const follow = clamp(.02 + ((state.frequency - 1) / 9) * .36 - state.leak * .0018, .012, .4)
+  state.cursorPosition.x += (state.cursorTarget.x - state.cursorPosition.x) * follow
+  state.cursorPosition.y += (state.cursorTarget.y - state.cursorPosition.y) * follow
   cursor.style.left = `${state.cursorPosition.x}%`
   cursor.style.top = `${state.cursorPosition.y}%`
   if (!state.cooldown) {
     checkCursorHits()
     expirePackets(delta)
   }
-  state.peakClock = Math.max(state.peakClock, 1 + state.frequency * 4)
+  state.peakClock = Math.max(state.peakClock, state.frequency)
   updateUI(elapsed)
 }
 
@@ -274,7 +271,7 @@ function loop(now) {
 
 function reset() {
   cancelAnimationFrame(frameId)
-  state.frequency = .45
+  state.frequency = 1
   state.temp = 18
   state.leak = 0
   state.score = 0
@@ -287,16 +284,17 @@ function reset() {
   state.crashed = false
   state.packets.forEach((packet) => packet.element.remove())
   state.packets = []
-  slider.value = '45'
+  slider.value = '1'
   ui.crashOverlay.classList.remove('active')
   resultModal.classList.remove('open')
   ui.sessionState.textContent = 'SYSTEM ONLINE'
+  document.body.classList.remove('crashed', 'thermal-warning')
   lastFrame = performance.now()
   frameId = requestAnimationFrame(loop)
 }
 
 slider.addEventListener('input', () => {
-  if (!state.cooldown && !state.crashed) state.frequency = Number(slider.value) / 100
+  if (!state.cooldown && !state.crashed) state.frequency = Number(slider.value)
 })
 
 arena.addEventListener('pointermove', setPointerPosition)
@@ -327,8 +325,8 @@ const originalUpdate = update
 update = function updateWithCooling(delta, elapsed) {
   if (state.cooling && !state.cooldown && !state.crashed) {
     state.temp = Math.max(18, state.temp - 12 * delta)
-    state.frequency = 0
-    slider.value = '0'
+    state.frequency = 1
+    slider.value = '1'
   }
   originalUpdate(delta, elapsed)
 }

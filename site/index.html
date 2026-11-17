@@ -29,7 +29,7 @@
       <section class="hud" aria-label="System telemetry">
         <article class="metric clock-metric">
           <div class="metric-heading">
-            <span>CLK SPEED</span>
+            <span>CLOCK SPEED</span>
             <strong id="clock-value">1.00 GHz</strong>
           </div>
           <div class="meter"><span id="clock-meter"></span></div>
@@ -45,7 +45,7 @@
         </article>
         <article class="metric leak-metric">
           <div class="metric-heading">
-            <span>MEM LEAK</span>
+            <span>MEMORY LEAK</span>
             <strong id="leak-value">0%</strong>
           </div>
           <div class="meter"><span id="leak-meter"></span></div>
@@ -90,13 +90,13 @@
       <section class="control-deck">
         <div class="slider-label">
           <div>
-            <span class="eyebrow">01 / FREQUENCY CONTROL</span>
-            <strong>THE OVERCLOCK SLIDER</strong>
+            <span class="eyebrow">01 / CORE CONTROL</span>
+            <strong>OVERCLOCK INDEX</strong>
           </div>
           <span id="frequency-mode">BALANCED</span>
         </div>
-        <input id="frequency-slider" type="range" min="0" max="100" value="45" aria-label="Clock frequency" />
-        <div class="slider-scale"><span>SAFE / SLOW</span><span>MAXIMUM OUTPUT</span></div>
+        <input id="frequency-slider" type="range" min="1" max="10" value="1" step="1" aria-label="Overclock index" />
+        <div class="slider-scale"><span>1 / SAFE</span><span>10 / REDLINE</span></div>
         <div class="action-row">
           <button id="cool-button" class="control-button"><span class="button-key">SPACE</span> COOLING OVERDRIVE</button>
           <button id="gc-button" class="control-button gc-button" disabled><span class="button-key">G</span> RUN GARBAGE COLLECTION</button>
